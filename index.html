@@ -1,86 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=1400">
-  <title>Jon Clicker Ultimate</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jonway Serfers</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="container">
-    <h1>Jon Clicker Ultimate</h1>
+  <div class="app">
+    <header>
+      <h1>Jonway Serfers</h1>
+      <p>Move with A/D or ←/→. Dodge, collect coins, and outrun Jon!</p>
+    </header>
 
-    <div class="topStats">
-      <div class="statCard"><span class="label">Jon's</span><span id="jons">0</span></div>
-      <div class="statCard"><span class="label">Souls</span><span id="souls">0</span></div>
-      <div class="statCard"><span class="label">Click Power</span><span id="clickPower">1</span></div>
-      <div class="statCard"><span class="label">Auto Jon/s</span><span id="autoPower">0</span></div>
-      <div class="statCard"><span class="label">Multiplier</span><span>x<span id="multiplier">1.00</span></span></div>
-      <div class="statCard"><span class="label">Total Rebirths</span><span id="totalRebirths">0</span></div>
-      <div class="statCard"><span class="label">Current Tier</span><span id="currentTier">Starter</span></div>
-      <div class="statCard"><span class="label">Offline Gain</span><span id="offlineInfo">0</span></div>
-    </div>
+    <section class="hud">
+      <div>Coins: <span id="coins">0</span></div>
+      <div>Distance: <span id="distance">0</span>m</div>
+      <div>Best: <span id="best">0</span>m</div>
+      <div>Speed Lv: <span id="speedLevel">0</span></div>
+      <div>Magnet Lv: <span id="magnetLevel">0</span></div>
+      <div>Shield Lv: <span id="shieldLevel">0</span></div>
+    </section>
 
-    <div class="mainRow">
-      <div class="clickArea">
-        <div class="buttonWrap">
-          <img src="jon.png" id="jonButton" alt="Jon Button">
-          <div id="clickEffects"></div>
-        </div>
-
-        <div class="actions">
-          <button onclick="saveGame()">Save</button>
-          <button onclick="loadGame()">Load</button>
-          <button onclick="exportSave()">Export Save</button>
-          <button onclick="importSave()">Import Save</button>
-          <button onclick="wipeSave()">Reset</button>
-        </div>
-
-        <div class="bossPanel panel">
-          <h2>Boss Event</h2>
-          <p id="bossText">No boss active.</p>
-          <div id="bossBarWrap"><div id="bossBar"></div></div>
-          <button id="bossButton" onclick="hitBoss()">Hit Boss</button>
-          <p>Bosses appear every 90 seconds and reward Jon's and Souls.</p>
-        </div>
+    <section class="game-wrap">
+      <canvas id="game" width="420" height="640" aria-label="Jonway Serfers game"></canvas>
+      <div id="overlay" class="overlay hidden">
+        <h2 id="overlayTitle">Game Over</h2>
+        <p id="overlayText"></p>
+        <button id="restartBtn">Play Again</button>
       </div>
+    </section>
 
-      <div class="shopArea">
-        <div class="panel">
-          <h2>Jon Upgrades</h2>
-          <div id="upgradeList"></div>
-        </div>
-
-        <div class="panel">
-          <h2>Soul Upgrades</h2>
-          <div id="soulUpgradeList"></div>
-        </div>
-
-        <div class="panel">
-          <h2>Skill Tree</h2>
-          <div id="skillTree"></div>
-        </div>
+    <section class="shop">
+      <h2>Upgrade Shop</h2>
+      <div class="shop-grid">
+        <button id="buySpeed">Buy Speed Boost (<span id="speedCost">15</span> coins)</button>
+        <button id="buyMagnet">Buy Coin Magnet (<span id="magnetCost">20</span> coins)</button>
+        <button id="buyShield">Buy Extra Shield (<span id="shieldCost">25</span> coins)</button>
       </div>
-
-      <div class="sideArea">
-        <div class="panel">
-          <h2>Rebirth</h2>
-          <p>Requires <strong>1,000,000 Jon's</strong></p>
-          <p>You gain <strong><span id="rebirthGain">0</span></strong> Souls</p>
-          <button onclick="rebirth()">Rebirth</button>
-        </div>
-
-        <div class="panel">
-          <h2>Tiers</h2>
-          <div id="tierList"></div>
-        </div>
-
-        <div class="panel">
-          <h2>Achievements</h2>
-          <div id="achievementList"></div>
-        </div>
-      </div>
-    </div>
+      <p class="note">Upgrades persist between runs and cost coins.</p>
+    </section>
   </div>
 
   <script src="game.js"></script>
