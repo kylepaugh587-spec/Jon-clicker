@@ -1,480 +1,291 @@
-const SAVE_KEY = "jonClickerUltimateDesktopPlusSave";
+const STORAGE_KEY = "jonway-serfers-save";
 
-let jons = 0;
-let souls = 0;
-let baseClickPower = 1;
-let baseAutoPower = 0;
-let multiplier = 1;
-let totalClicks = 0;
-let totalRebirths = 0;
-let prestigeBonus = 1;
-let offlineLastGain = 0;
-let lastSeen = Date.now();
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-const costScale = 1.1;
-const soulCostScale = 1.1;
+const coinsEl = document.getElementById("coins");
+const distanceEl = document.getElementById("distance");
+const bestEl = document.getElementById("best");
+const speedLevelEl = document.getElementById("speedLevel");
+const magnetLevelEl = document.getElementById("magnetLevel");
+const shieldLevelEl = document.getElementById("shieldLevel");
 
-const tiers = [
-  { name: "Starter", need: 0 },
-  { name: "Bronze", need: 1e4 },
-  { name: "Silver", need: 1e6 },
-  { name: "Gold", need: 1e8 },
-  { name: "Platinum", need: 1e10 },
-  { name: "Mythic", need: 1e12 },
-  { name: "Cosmic", need: 1e15 }
-];
+const speedCostEl = document.getElementById("speedCost");
+const magnetCostEl = document.getElementById("magnetCost");
+const shieldCostEl = document.getElementById("shieldCost");
 
-const upgradeDefaults = [
-  { name: "Finger Training", type: "click", amount: 1, cost: 10, tier: 0 },
-  { name: "Jon Factory", type: "auto", amount: 1, cost: 100, tier: 0 },
-  { name: "Jon Empire", type: "click", amount: 5, cost: 1000, tier: 0 },
-  { name: "Jon Reactor", type: "auto", amount: 25, cost: 10000, tier: 1 },
-  { name: "Ultra Jon Core", type: "click", amount: 100, cost: 100000, tier: 1 },
-  { name: "Jon Mine", type: "auto", amount: 200, cost: 500000, tier: 2 },
-  { name: "Jon Cannon", type: "click", amount: 750, cost: 2500000, tier: 2 },
-  { name: "Jon Lab", type: "auto", amount: 2500, cost: 15000000, tier: 3 },
-  { name: "Jon Dimension", type: "click", amount: 10000, cost: 100000000, tier: 3 },
-  { name: "Jon Galaxy", type: "auto", amount: 50000, cost: 750000000, tier: 4 },
-  { name: "Jon Singularity", type: "click", amount: 250000, cost: 5000000000, tier: 4 },
-  { name: "Jon Infinity Forge", type: "auto", amount: 1000000, cost: 50000000000, tier: 5 },
-  { name: "Jon Nova Engine", type: "click", amount: 5000000, cost: 300000000000, tier: 5 },
-  { name: "Jon Void Plant", type: "auto", amount: 20000000, cost: 2500000000000, tier: 6 },
-  { name: "Jon Crown of Time", type: "click", amount: 100000000, cost: 20000000000000, tier: 6 }
-];
+const overlay = document.getElementById("overlay");
+const overlayTitle = document.getElementById("overlayTitle");
+const overlayText = document.getElementById("overlayText");
+const restartBtn = document.getElementById("restartBtn");
 
-let upgrades = upgradeDefaults.map(u => ({...u, owned: 0}));
+const lanes = [105, 210, 315];
+const player = { lane: 1, y: 540, w: 44, h: 60, color: "#56e39f" };
+const chaser = { lane: 1, y: 610, w: 44, h: 60, color: "#ff5f56" };
 
-const soulUpgradeDefaults = [
-  { name: "Soul Strength", add: 0.5, cost: 5 },
-  { name: "Soul Surge", add: 1, cost: 25 },
-  { name: "Soul Engine", add: 2, cost: 100 },
-  { name: "Soul Flame", add: 5, cost: 500 },
-  { name: "Soul Storm", add: 10, cost: 2500 },
-  { name: "Soul Crown", add: 25, cost: 10000 },
-  { name: "Soul Void", add: 100, cost: 100000 },
-  { name: "Soul Eternity", add: 500, cost: 1000000 }
-];
+const state = {
+  coins: 0,
+  runCoins: 0,
+  distance: 0,
+  bestDistance: 0,
+  speedLevel: 0,
+  magnetLevel: 0,
+  shieldLevel: 0,
+  shields: 0,
+  playing: true,
+  elapsed: 0,
+  obstacles: [],
+  coinDrops: [],
+};
 
-let soulUpgrades = soulUpgradeDefaults.map(u => ({...u, owned: 0}));
-
-const skillDefaults = [
-  { id: "rebirthBoost", name: "Rebirth Wisdom", desc: "+25% souls gained on rebirth.", cost: 10, tier: 0, bought: false },
-  { id: "autoBoost", name: "Automation Mastery", desc: "+50% auto Jon/s.", cost: 25, tier: 0, bought: false },
-  { id: "clickBoost", name: "Finger of Destiny", desc: "+50% click power.", cost: 25, tier: 0, bought: false },
-  { id: "offlineBoost", name: "Sleeping Riches", desc: "Offline gain works at 50% efficiency.", cost: 50, tier: 1, bought: false },
-  { id: "bossBoost", name: "Boss Hunter", desc: "Boss rewards doubled.", cost: 100, tier: 1, bought: false },
-  { id: "prestige", name: "Ancient Prestige", desc: "Permanent +25% power every rebirth.", cost: 250, tier: 2, bought: false },
-  { id: "megaRebirth", name: "Soul Overflow", desc: "+100% rebirth soul gain.", cost: 500, tier: 2, bought: false }
-];
-
-let skills = skillDefaults.map(s => ({...s}));
-
-const achievements = [
-  { id: "click1", name: "First Jon", desc: "Reach 1 total click.", check: () => totalClicks >= 1, earned: false },
-  { id: "click100", name: "Click Machine", desc: "Reach 100 total clicks.", check: () => totalClicks >= 100, earned: false },
-  { id: "click1000", name: "Click Legend", desc: "Reach 1,000 total clicks.", check: () => totalClicks >= 1000, earned: false },
-  { id: "jons1k", name: "Jon Rookie", desc: "Get 1,000 Jon's.", check: () => jons >= 1e3, earned: false },
-  { id: "jons1m", name: "Jon Tycoon", desc: "Get 1,000,000 Jon's.", check: () => jons >= 1e6, earned: false },
-  { id: "jons1b", name: "Jon Billionaire", desc: "Get 1,000,000,000 Jon's.", check: () => jons >= 1e9, earned: false },
-  { id: "jons1t", name: "Jon Trillionaire", desc: "Get 1,000,000,000,000 Jon's.", check: () => jons >= 1e12, earned: false },
-  { id: "rebirth1", name: "Soul Awakening", desc: "Rebirth 1 time.", check: () => totalRebirths >= 1, earned: false },
-  { id: "rebirth5", name: "Soul Master", desc: "Rebirth 5 times.", check: () => totalRebirths >= 5, earned: false },
-  { id: "rebirth25", name: "Soul King", desc: "Rebirth 25 times.", check: () => totalRebirths >= 25, earned: false },
-  { id: "souls100", name: "Soul Collector", desc: "Own 100 Souls.", check: () => souls >= 100, earned: false },
-  { id: "souls10k", name: "Soul Overlord", desc: "Own 10,000 Souls.", check: () => souls >= 10000, earned: false }
-];
-
-let boss = { active: false, hp: 0, maxHp: 0, rewardJons: 0, rewardSouls: 0, endTime: 0 };
-
-function hasSkill(id) {
-  const s = skills.find(x => x.id === id);
-  return !!(s && s.bought);
+function speedCost() {
+  return 15 + state.speedLevel * 15;
 }
 
-function currentTierIndex() {
-  let index = 0;
-  for (let i = 0; i < tiers.length; i++) {
-    if (jons >= tiers[i].need) index = i;
-  }
-  return index;
+function magnetCost() {
+  return 20 + state.magnetLevel * 20;
 }
 
-function getClickPower() {
-  let value = baseClickPower * multiplier * prestigeBonus;
-  if (hasSkill("clickBoost")) value *= 1.5;
-  return value;
-}
-
-function getAutoPower() {
-  let value = baseAutoPower * multiplier * prestigeBonus;
-  if (hasSkill("autoBoost")) value *= 1.5;
-  return value;
-}
-
-function calculateMultiplier() {
-  multiplier = 1;
-  soulUpgrades.forEach(u => multiplier += u.owned * u.add);
-}
-
-function clickJon() {
-  const gain = getClickPower();
-  jons += gain;
-  totalClicks++;
-  showClickEffect("+" + formatNumber(gain));
-  checkAchievements();
-  update();
-}
-document.getElementById("jonButton").onclick = clickJon;
-
-function buyUpgrade(index) {
-  const u = upgrades[index];
-  if (currentTierIndex() < u.tier) return;
-  if (jons >= u.cost) {
-    jons -= u.cost;
-    u.owned++;
-    u.cost = Math.floor(u.cost * costScale);
-    if (u.type === "click") baseClickPower += u.amount;
-    if (u.type === "auto") baseAutoPower += u.amount;
-    checkAchievements();
-    update();
-  }
-}
-
-function buySoulUpgrade(index) {
-  const u = soulUpgrades[index];
-  if (souls >= u.cost) {
-    souls -= u.cost;
-    u.owned++;
-    u.cost = Math.floor(u.cost * soulCostScale);
-    calculateMultiplier();
-    checkAchievements();
-    update();
-  }
-}
-
-function buySkill(index) {
-  const s = skills[index];
-  if (s.bought || totalRebirths < s.tier || souls < s.cost) return;
-  souls -= s.cost;
-  s.bought = true;
-  if (s.id === "prestige") prestigeBonus += totalRebirths * 0.25;
-  calculateMultiplier();
-  update();
-}
-
-function getRebirthGain() {
-  if (jons < 1e6) return 0;
-  let gained = Math.floor(Math.sqrt(jons / 100000));
-  if (hasSkill("rebirthBoost")) gained = Math.floor(gained * 1.25);
-  if (hasSkill("megaRebirth")) gained = Math.floor(gained * 2);
-  return Math.max(gained, 1);
-}
-
-function rebirth() {
-  const gained = getRebirthGain();
-  if (gained <= 0) return;
-  souls += gained;
-  totalRebirths++;
-  if (hasSkill("prestige")) prestigeBonus += 0.25;
-  jons = 0;
-  baseClickPower = 1;
-  baseAutoPower = 0;
-  upgrades = upgradeDefaults.map(u => ({...u, owned: 0}));
-  calculateMultiplier();
-  checkAchievements();
-  update();
-}
-
-function spawnBoss() {
-  if (boss.active) return;
-  boss.active = true;
-  const tier = currentTierIndex() + 1;
-  boss.maxHp = Math.max(100, Math.floor(getClickPower() * 30 * tier));
-  boss.hp = boss.maxHp;
-  boss.rewardJons = Math.floor(getAutoPower() * 120 + getClickPower() * 50 + tier * 5000);
-  boss.rewardSouls = Math.max(1, Math.floor(tier * 2));
-  if (hasSkill("bossBoost")) {
-    boss.rewardJons *= 2;
-    boss.rewardSouls *= 2;
-  }
-  boss.endTime = Date.now() + 30000;
-  updateBossUI();
-}
-
-function hitBoss() {
-  if (!boss.active) return;
-  const damage = getClickPower() * 3;
-  boss.hp -= damage;
-  showClickEffect("-" + formatNumber(damage));
-  if (boss.hp <= 0) {
-    jons += boss.rewardJons;
-    souls += boss.rewardSouls;
-    boss.active = false;
-    boss.hp = 0;
-    updateBossUI("Boss defeated! +" + formatNumber(boss.rewardJons) + " Jon's, +" + formatNumber(boss.rewardSouls) + " Souls");
-    checkAchievements();
-    update();
-    return;
-  }
-  updateBossUI();
-}
-
-function tickBoss() {
-  if (!boss.active) return;
-  if (Date.now() >= boss.endTime) {
-    boss.active = false;
-    boss.hp = 0;
-    updateBossUI("Boss escaped.");
-  } else updateBossUI();
-}
-
-function updateBossUI(customText) {
-  const text = document.getElementById("bossText");
-  const bar = document.getElementById("bossBar");
-  const btn = document.getElementById("bossButton");
-  if (!boss.active) {
-    text.textContent = customText || "No boss active.";
-    bar.style.width = "0%";
-    btn.disabled = true;
-    return;
-  }
-  const pct = Math.max(0, (boss.hp / boss.maxHp) * 100);
-  text.textContent = customText || ("Boss HP: " + formatNumber(boss.hp) + " / " + formatNumber(boss.maxHp) + " | Reward: " + formatNumber(boss.rewardJons) + " Jon's + " + formatNumber(boss.rewardSouls) + " Souls");
-  bar.style.width = pct + "%";
-  btn.disabled = false;
-}
-
-function showClickEffect(text) {
-  const effects = document.getElementById("clickEffects");
-  const div = document.createElement("div");
-  div.className = "floatText";
-  div.textContent = text;
-  div.style.left = (35 + Math.random() * 180) + "px";
-  div.style.top = (80 + Math.random() * 50) + "px";
-  effects.appendChild(div);
-  setTimeout(() => div.remove(), 800);
-}
-
-function formatNumber(num) {
-  if (num < 1000) return Math.floor(num).toLocaleString();
-  const names = [
-    { value: 1e63, symbol: "Vg" }, { value: 1e60, symbol: "Nd" }, { value: 1e57, symbol: "Od" },
-    { value: 1e54, symbol: "Spd" }, { value: 1e51, symbol: "Sxd" }, { value: 1e48, symbol: "Qid" },
-    { value: 1e45, symbol: "Qad" }, { value: 1e42, symbol: "Td" }, { value: 1e39, symbol: "Dd" },
-    { value: 1e36, symbol: "Ud" }, { value: 1e33, symbol: "Dc" }, { value: 1e30, symbol: "No" },
-    { value: 1e27, symbol: "Oc" }, { value: 1e24, symbol: "Sp" }, { value: 1e21, symbol: "Sx" },
-    { value: 1e18, symbol: "Qi" }, { value: 1e15, symbol: "Qa" }, { value: 1e12, symbol: "T" },
-    { value: 1e9, symbol: "B" }, { value: 1e6, symbol: "M" }, { value: 1e3, symbol: "K" }
-  ];
-  for (const item of names) if (num >= item.value) return (num / item.value).toFixed(2) + " " + item.symbol;
-  return Math.floor(num).toLocaleString();
-}
-
-function renderUpgradeButtons() {
-  const box = document.getElementById("upgradeList");
-  box.innerHTML = "";
-  const tierIndex = currentTierIndex();
-  upgrades.forEach((u, i) => {
-    const btn = document.createElement("button");
-    btn.className = "upgradeBtn" + (tierIndex < u.tier ? " locked" : "");
-    btn.onclick = () => buyUpgrade(i);
-    const kind = u.type === "click" ? "Click Power" : "Auto Jon/s";
-    btn.innerHTML = "<strong>" + u.name + "</strong><br><span class='upgradeDesc'>+" + formatNumber(u.amount) + " " + kind + "<br>Owned: " + u.owned + "<br>Cost: " + formatNumber(u.cost) + " Jon's<br>Unlock Tier: " + tiers[u.tier].name + "</span>";
-    box.appendChild(btn);
-  });
-}
-
-function renderSoulUpgradeButtons() {
-  const box = document.getElementById("soulUpgradeList");
-  box.innerHTML = "";
-  soulUpgrades.forEach((u, i) => {
-    const btn = document.createElement("button");
-    btn.onclick = () => buySoulUpgrade(i);
-    btn.innerHTML = "<strong>" + u.name + "</strong><br><span class='upgradeDesc'>+" + u.add.toFixed(2) + "x Multiplier<br>Owned: " + u.owned + "<br>Cost: " + formatNumber(u.cost) + " Souls</span>";
-    box.appendChild(btn);
-  });
-}
-
-function renderSkills() {
-  const box = document.getElementById("skillTree");
-  box.innerHTML = "";
-  skills.forEach((s, i) => {
-    const btn = document.createElement("button");
-    btn.className = "skillBtn" + ((totalRebirths < s.tier || s.bought) ? " locked" : "");
-    btn.onclick = () => buySkill(i);
-    btn.innerHTML = "<strong>" + s.name + "</strong><br><span class='upgradeDesc'>" + s.desc + "<br>Cost: " + formatNumber(s.cost) + " Souls<br>Unlock: " + s.tier + " rebirths<br>Status: " + (s.bought ? "Owned" : "Not owned") + "</span>";
-    box.appendChild(btn);
-  });
-}
-
-function updateAchievementDisplay() {
-  const box = document.getElementById("achievementList");
-  box.innerHTML = "";
-  achievements.forEach(a => {
-    const div = document.createElement("div");
-    div.className = "achievement" + (a.earned ? " done" : "");
-    div.innerHTML = "<strong>" + a.name + "</strong><br>" + a.desc + (a.earned ? "<br>Unlocked!" : "");
-    box.appendChild(div);
-  });
-}
-
-function updateTierDisplay() {
-  const box = document.getElementById("tierList");
-  box.innerHTML = "";
-  const current = currentTierIndex();
-  tiers.forEach((t, i) => {
-    const div = document.createElement("div");
-    div.className = "tierItem" + (current >= i ? " done" : "");
-    div.innerHTML = "<strong>" + t.name + "</strong><br>Need " + formatNumber(t.need) + " Jon's";
-    box.appendChild(div);
-  });
-  document.getElementById("currentTier").textContent = tiers[current].name;
-}
-
-function checkAchievements() {
-  achievements.forEach(a => { if (!a.earned && a.check()) a.earned = true; });
-  updateAchievementDisplay();
-}
-
-function applyOfflineGain() {
-  const now = Date.now();
-  const secondsAway = Math.floor((now - lastSeen) / 1000);
-  let gain = 0;
-  if (secondsAway > 5 && hasSkill("offlineBoost")) {
-    const capped = Math.min(secondsAway, 8 * 60 * 60);
-    gain = Math.floor(getAutoPower() * capped * 0.5);
-    jons += gain;
-  }
-  offlineLastGain = gain;
-  lastSeen = now;
-}
-
-function getSaveData() {
-  return {
-    jons, souls, baseClickPower, baseAutoPower, multiplier, totalClicks, totalRebirths,
-    prestigeBonus, offlineLastGain, lastSeen,
-    upgrades: upgrades.map(u => ({ cost: u.cost, owned: u.owned })),
-    soulUpgrades: soulUpgrades.map(u => ({ cost: u.cost, owned: u.owned })),
-    skills: skills.map(s => ({ id: s.id, bought: s.bought })),
-    achievements: achievements.map(a => ({ id: a.id, earned: a.earned })),
-    boss
-  };
-}
-
-function applySaveData(data) {
-  jons = data.jons ?? 0;
-  souls = data.souls ?? 0;
-  baseClickPower = data.baseClickPower ?? 1;
-  baseAutoPower = data.baseAutoPower ?? 0;
-  totalClicks = data.totalClicks ?? 0;
-  totalRebirths = data.totalRebirths ?? 0;
-  prestigeBonus = data.prestigeBonus ?? 1;
-  offlineLastGain = 0;
-  lastSeen = data.lastSeen ?? Date.now();
-
-  if (Array.isArray(data.upgrades)) {
-    data.upgrades.forEach((saved, i) => {
-      if (upgrades[i]) {
-        upgrades[i].cost = saved.cost ?? upgrades[i].cost;
-        upgrades[i].owned = saved.owned ?? 0;
-      }
-    });
-  }
-  if (Array.isArray(data.soulUpgrades)) {
-    data.soulUpgrades.forEach((saved, i) => {
-      if (soulUpgrades[i]) {
-        soulUpgrades[i].cost = saved.cost ?? soulUpgrades[i].cost;
-        soulUpgrades[i].owned = saved.owned ?? 0;
-      }
-    });
-  }
-  if (Array.isArray(data.skills)) {
-    data.skills.forEach(saved => {
-      const found = skills.find(s => s.id === saved.id);
-      if (found) found.bought = !!saved.bought;
-    });
-  }
-  if (Array.isArray(data.achievements)) {
-    data.achievements.forEach(saved => {
-      const found = achievements.find(a => a.id === saved.id);
-      if (found) found.earned = !!saved.earned;
-    });
-  }
-  if (data.boss) boss = data.boss;
-
-  calculateMultiplier();
-  applyOfflineGain();
-  checkAchievements();
-  update();
+function shieldCost() {
+  return 25 + state.shieldLevel * 25;
 }
 
 function saveGame() {
-  lastSeen = Date.now();
-  localStorage.setItem(SAVE_KEY, JSON.stringify(getSaveData()));
-  alert("Game saved.");
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      coins: state.coins,
+      bestDistance: state.bestDistance,
+      speedLevel: state.speedLevel,
+      magnetLevel: state.magnetLevel,
+      shieldLevel: state.shieldLevel,
+    })
+  );
 }
 
 function loadGame() {
-  const raw = localStorage.getItem(SAVE_KEY);
+  const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return;
-  try { applySaveData(JSON.parse(raw)); } catch (e) { alert("Save could not be loaded."); }
-}
-
-function exportSave() {
-  lastSeen = Date.now();
-  const code = btoa(unescape(encodeURIComponent(JSON.stringify(getSaveData()))));
-  prompt("Copy your save code:", code);
-}
-
-function importSave() {
-  const code = prompt("Paste your save code:");
-  if (!code) return;
   try {
-    const data = JSON.parse(decodeURIComponent(escape(atob(code))));
-    applySaveData(data);
-    saveGame();
-  } catch (e) {
-    alert("Invalid save code.");
+    const data = JSON.parse(raw);
+    state.coins = data.coins || 0;
+    state.bestDistance = data.bestDistance || 0;
+    state.speedLevel = data.speedLevel || 0;
+    state.magnetLevel = data.magnetLevel || 0;
+    state.shieldLevel = data.shieldLevel || 0;
+  } catch {
+    localStorage.removeItem(STORAGE_KEY);
   }
 }
 
-function wipeSave() {
-  if (!confirm("Delete your save?")) return;
-  localStorage.removeItem(SAVE_KEY);
-  location.reload();
+function resetRun() {
+  state.runCoins = 0;
+  state.distance = 0;
+  state.elapsed = 0;
+  state.obstacles = [];
+  state.coinDrops = [];
+  state.playing = true;
+  state.shields = state.shieldLevel;
+  player.lane = 1;
+  chaser.lane = 1;
+  chaser.y = 610;
+  overlay.classList.add("hidden");
 }
 
-function update() {
-  document.getElementById("jons").textContent = formatNumber(jons);
-  document.getElementById("souls").textContent = formatNumber(souls);
-  document.getElementById("clickPower").textContent = formatNumber(getClickPower());
-  document.getElementById("autoPower").textContent = formatNumber(getAutoPower());
-  document.getElementById("multiplier").textContent = multiplier.toFixed(2);
-  document.getElementById("rebirthGain").textContent = formatNumber(getRebirthGain());
-  document.getElementById("totalRebirths").textContent = formatNumber(totalRebirths);
-  document.getElementById("offlineInfo").textContent = formatNumber(offlineLastGain);
-  renderUpgradeButtons();
-  renderSoulUpgradeButtons();
-  renderSkills();
-  updateTierDisplay();
-  updateAchievementDisplay();
-  updateBossUI();
+function updateHUD() {
+  coinsEl.textContent = state.coins;
+  distanceEl.textContent = Math.floor(state.distance);
+  bestEl.textContent = Math.floor(state.bestDistance);
+  speedLevelEl.textContent = state.speedLevel;
+  magnetLevelEl.textContent = state.magnetLevel;
+  shieldLevelEl.textContent = state.shieldLevel;
+  speedCostEl.textContent = speedCost();
+  magnetCostEl.textContent = magnetCost();
+  shieldCostEl.textContent = shieldCost();
 }
 
-setInterval(() => {
-  jons += getAutoPower();
-  tickBoss();
-  checkAchievements();
-  update();
-}, 1000);
+function spawnObstacle() {
+  state.obstacles.push({ lane: Math.floor(Math.random() * 3), y: -50, w: 50, h: 50 });
+}
 
-setInterval(() => { if (!boss.active) spawnBoss(); }, 90000);
+function spawnCoin() {
+  state.coinDrops.push({ lane: Math.floor(Math.random() * 3), y: -20, r: 12 });
+}
 
-setInterval(() => {
-  lastSeen = Date.now();
-  localStorage.setItem(SAVE_KEY, JSON.stringify(getSaveData()));
-}, 10000);
+function rectHit(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function gameOver() {
+  state.playing = false;
+  state.coins += state.runCoins;
+  if (state.distance > state.bestDistance) state.bestDistance = state.distance;
+  saveGame();
+  updateHUD();
+  overlayTitle.textContent = "Caught by Jon!";
+  overlayText.textContent = `Run coins: ${state.runCoins} • Distance: ${Math.floor(state.distance)}m`;
+  overlay.classList.remove("hidden");
+}
+
+function tryBuy(kind) {
+  if (kind === "speed") {
+    const cost = speedCost();
+    if (state.coins < cost) return;
+    state.coins -= cost;
+    state.speedLevel += 1;
+  }
+  if (kind === "magnet") {
+    const cost = magnetCost();
+    if (state.coins < cost) return;
+    state.coins -= cost;
+    state.magnetLevel += 1;
+  }
+  if (kind === "shield") {
+    const cost = shieldCost();
+    if (state.coins < cost) return;
+    state.coins -= cost;
+    state.shieldLevel += 1;
+  }
+  saveGame();
+  updateHUD();
+}
+
+function drawRoad(scroll) {
+  ctx.fillStyle = "#243867";
+  ctx.fillRect(60, 0, 300, canvas.height);
+
+  ctx.strokeStyle = "rgba(255,255,255,0.55)";
+  ctx.lineWidth = 4;
+  for (let i = -80; i < canvas.height + 80; i += 80) {
+    const y = (i + scroll) % (canvas.height + 80) - 80;
+    ctx.beginPath();
+    ctx.moveTo(160, y);
+    ctx.lineTo(160, y + 40);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(260, y);
+    ctx.lineTo(260, y + 40);
+    ctx.stroke();
+  }
+}
+
+function drawRunner(entity, label) {
+  const x = lanes[entity.lane] - entity.w / 2;
+  ctx.fillStyle = entity.color;
+  ctx.fillRect(x, entity.y - entity.h, entity.w, entity.h);
+  ctx.fillStyle = "#fff";
+  ctx.font = "12px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText(label, lanes[entity.lane], entity.y - entity.h - 6);
+}
+
+function loop(ts) {
+  const dt = Math.min(0.033, (ts - (loop.last || ts)) / 1000);
+  loop.last = ts;
+
+  const speed = 220 + state.speedLevel * 16;
+  state.elapsed += dt;
+
+  if (state.playing) {
+    state.distance += dt * (speed / 10);
+
+    if (Math.random() < dt * 1.65) spawnObstacle();
+    if (Math.random() < dt * 1.5) spawnCoin();
+
+    for (const obstacle of state.obstacles) obstacle.y += speed * dt;
+    for (const coin of state.coinDrops) coin.y += speed * dt;
+
+    const playerRect = {
+      x: lanes[player.lane] - player.w / 2,
+      y: player.y - player.h,
+      w: player.w,
+      h: player.h,
+    };
+
+    for (const obstacle of state.obstacles) {
+      const obstacleRect = {
+        x: lanes[obstacle.lane] - obstacle.w / 2,
+        y: obstacle.y - obstacle.h,
+        w: obstacle.w,
+        h: obstacle.h,
+      };
+      if (rectHit(playerRect, obstacleRect)) {
+        if (state.shields > 0) {
+          state.shields -= 1;
+          obstacle.y = canvas.height + 100;
+        } else {
+          gameOver();
+          break;
+        }
+      }
+    }
+
+    for (const coin of state.coinDrops) {
+      const dx = lanes[player.lane] - lanes[coin.lane];
+      const magnetRange = 20 + state.magnetLevel * 24;
+      if (Math.abs(dx) <= magnetRange && coin.y > 380) {
+        coin.lane = player.lane;
+      }
+
+      const distY = Math.abs((player.y - player.h / 2) - coin.y);
+      if (coin.lane === player.lane && distY < 36) {
+        state.runCoins += 1;
+        coin.y = canvas.height + 100;
+      }
+    }
+
+    state.obstacles = state.obstacles.filter((o) => o.y < canvas.height + 100);
+    state.coinDrops = state.coinDrops.filter((c) => c.y < canvas.height + 50);
+
+    const pressure = 0.6 + state.distance / 1300;
+    chaser.y -= (speed * 0.55 - pressure * 20) * dt;
+    if (chaser.y < player.y + 25) gameOver();
+  }
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawRoad((state.elapsed * speed * 0.65) % (canvas.height + 80));
+
+  ctx.fillStyle = "#ffb703";
+  for (const coin of state.coinDrops) {
+    ctx.beginPath();
+    ctx.arc(lanes[coin.lane], coin.y, coin.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = "#8d99ae";
+  for (const obstacle of state.obstacles) {
+    ctx.fillRect(lanes[obstacle.lane] - obstacle.w / 2, obstacle.y - obstacle.h, obstacle.w, obstacle.h);
+  }
+
+  drawRunner(player, "YOU");
+  drawRunner(chaser, "JON");
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "14px Arial";
+  ctx.textAlign = "left";
+  ctx.fillText(`Run coins: ${state.runCoins}`, 12, 24);
+  ctx.fillText(`Shields: ${state.shields}`, 12, 44);
+
+  distanceEl.textContent = Math.floor(state.distance);
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") {
+    player.lane = Math.max(0, player.lane - 1);
+  }
+  if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") {
+    player.lane = Math.min(2, player.lane + 1);
+  }
+});
+
+document.getElementById("buySpeed").addEventListener("click", () => tryBuy("speed"));
+document.getElementById("buyMagnet").addEventListener("click", () => tryBuy("magnet"));
+document.getElementById("buyShield").addEventListener("click", () => tryBuy("shield"));
+restartBtn.addEventListener("click", resetRun);
 
 loadGame();
-update();
-updateBossUI();
+updateHUD();
+resetRun();
+requestAnimationFrame(loop);
